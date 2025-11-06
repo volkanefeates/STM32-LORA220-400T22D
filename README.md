@@ -1,109 +1,126 @@
 # STM32-LORA220-400T22D
 
-
 Bu proje, EBYTE E220 serisi (ör. LORA220-400T22D) modüllerini STM32 (HAL) ile yapılandırmak ve geçici ayarlarını değiştirmek için hazırlanmış bir örnek kütüphaneyi içerir.
 
 Bu repodaki örnek kodlar şunları yapar:
 
 - Modülün mevcut ayarlarını UART üzerinden okur.
 - Kodu içindeki `lora_module.settings` yapısını kullanarak yeni (geçici) ayarları modüle yazar.
-- Ayarların RAM'e yazıldığını doğrular.
 
-Hangi pinleri bağlamanız gerektiği (genel rehber):
+# STM32 - EBYTE LORA220-400T22D (E220) — Kullanım & Bağlantı Rehberi
 
-- LORA Modül Pinleri (tipik): VCC (3.3V), GND, TX, RX, M0, M1, AUX
-- STM32 (örnek):
-  - LORA TX -> MCU USART1_RX (ör. PA10)
-  - LORA RX -> MCU USART1_TX (ör. PA9)
-  - LORA VCC -> 3.3V (mutlaka 3.3V)
-  - LORA GND -> GND
-  - LORA M0 -> MCU GPIO (ör. GPIOB, M0_Pin)
-  - LORA M1 -> MCU GPIO (ör. GPIOB, M1_Pin)
-  - LORA AUX -> MCU GPIO input (AUX_GPIO_Port, AUX_Pin)
+Bu repo, EBYTE E220 serisi (ör. LORA220-400T22D) radyo modülünü STM32 (HAL) ile hızlıca denemek ve modül ayarlarını (geçici/RAM'e yazma) değiştirmek için hazırlanmış bir örnek proje içerir.
 
-Not: `main.c` içinde modül için kullanılan UART: `huart1` (bu kodda modül haberleşmesi için USART1 kullanılıyor). Log/debug için `huart2` (115200) kullanılır.
+İçindekiler
 
-Önerilen (örnek) pin eşlemesi — board'a göre değişebilir, lütfen `main.h` veya CubeMX (ioc) dosyanızdaki `M0_Pin`, `M1_Pin`, `AUX_Pin` tanımlarını kontrol edin:
+- `Inc/Lora_Settings.h` : Modül ayarları için yapı, enum ve fonksiyon prototipleri
+- `Src/Lora_Settings.c` : UART üzerinden modül ile konuşma, okuma/yazma ve kayıt/parça-parça yazma rutinleri
+- `Src/main.c` : Kütüphaneyi nasıl kullanacağınızı gösteren örnek uygulama
 
-- USART1: PA9 = TX, PA10 = RX (modül <-> MCU seri bağlantısı için)
-- USART2: PA2 = TX, PA3 = RX (debug/log için; kod örneğinde huart2 115200)
-- M0, M1: PBx (kodda GPIOB kullanılıyor; hangi PBx olduğunu `main.h` tanımları belirler)
-- AUX: herhangi bir giriş pini (kodda `AUX_GPIO_Port` ile tanımlıdır)
+Hızlı özet
 
-CubeMX / STM32 Ayar Önerileri:
+Bu proje ile:
 
-1. USART1'i (Asynchronous) etkinleştir, Baudrate 9600, 8N1.
-2. USART2'yi (Asynchronous) etkinleştir, Baudrate 115200 (debug/log).
-3. GPIOB üzerindeki M0 ve M1 pinlerini: Output, Push-Pull, No Pull, Low Speed olarak ayarla.
-4. AUX pinini: Input, No Pull olarak ayarla.
-5. Kod jenerasyonu yap ve proje dosyalarındaki `M0_Pin`, `M1_Pin`, `AUX_Pin` tanımlarını not et.
+- Modülün mevcut ayarlarını okuyabilirsiniz.
+- `lora_module.settings` yapısını doldurup yeni (geçici) ayarları modüle yazabilirsiniz (RAM'e yazma).
+- Yazılan ayarları doğrulamak için tekrar okuyabilirsiniz.
 
-Kısa kullanım notları (kod tarafı):
+Önkoşullar
 
-- `E220_Init(&lora_module, &huart1, M0_GPIO_Port, M0_Pin, M1_GPIO_Port, M1_Pin, AUX_GPIO_Port, AUX_Pin);`
-  — Bu fonksiyona modülün UART handle'ı ve M0/M1/AUX pin port/pin tanımları verilir.
-- Mod değiştirme (config <-> normal) için `E220_SetMode(dev, MODE_3_CONFIG)` vb. kullanılır. Kod, AUX pininin HIGH olmasını bekleyerek (handshake) çalışır.
-- `E220_LoadSettingsFromModule` modülden (kalıcı ayarları da dahil) ayarları okur ve `dev->settings` içine doldurur.
-- `E220_SaveSettingsToRAM` ile `dev->settings` içeriği geçici (RAM) ayar olarak modüle yazılır (kodda parça parça yazma yapılır).
+- STM32CubeIDE / STM32CubeMX veya HAL kullanan benzer bir yapı
+- HAL UART sürücüsü proje içinde etkin ve konfigüre edilmiş olmalı (ör. `USART1`)
+- Modül 3.3V ile beslenmelidir (5V vermeyin)
 
-Önemli notlar / Troubleshooting:
+Donanım (bağlantı) — tipik
 
-- Besleme gerilimini kesinlikle 3.3V ile sağlayın; 5V vermeyin.
-- UART hatlarını çapraz bağlayın: MCU_TX -> MODULE_RX, MCU_RX -> MODULE_TX.
-- AUX pini modülün işlem durumunu gösterir; kod AUX HIGH beklerken modülün hazır olduğunu belirtir.
-- Eğer `E220_LoadSettingsFromModule` hata veriyorsa: önce fiziksel bağlantıları, güç ve UART baud/parity ayarlarını kontrol edin.
-
-## English — Project summary and wiring guide
-
-This repository contains an example HAL-based STM32 library to read and modify settings of the EBYTE E220 family (for example LORA220-400T22D). The sample code reads current module settings via UART, writes temporary settings into RAM, and verifies them.
-
-Quick mapping (typical):
-
-- LORA module pins: VCC (3.3V), GND, TX, RX, M0, M1, AUX
-- MCU (example):
-  - MODULE TX -> MCU USART1_RX (e.g. PA10)
-  - MODULE RX -> MCU USART1_TX (e.g. PA9)
+- LORA modül: VCC, GND, TX, RX, M0, M1, AUX
+- Örnek STM32 eşlemesi (kendi kartınıza göre değiştirin):
+  - MODULE TX -> MCU USART1_RX (ör. PA10)
+  - MODULE RX -> MCU USART1_TX (ör. PA9)
   - MODULE VCC -> 3.3V
   - MODULE GND -> GND
-  - M0 -> MCU GPIO (e.g. GPIOB, M0_Pin)
-  - M1 -> MCU GPIO (e.g. GPIOB, M1_Pin)
-  - AUX -> MCU GPIO input (AUX_GPIO_Port, AUX_Pin)
+  - M0 -> MCU GPIO (ör. GPIOB, `M0_Pin`)
+  - M1 -> MCU GPIO (ör. GPIOB, `M1_Pin`)
+  - AUX -> MCU GPIO input (ör. `AUX_Pin`)
 
-Important code details found in this repo:
+Not: Projedeki örnek uygulama `huart1` ile modül iletişimi kurar (USART1, 9600) ve `huart2` debug için (115200) kullanılır.
 
-- The library uses `huart1` for E220 module communication. `huart1` BaudRate is set to 9600 in `MX_USART1_UART_Init`.
-- `huart2` is used for debug logs and is set to 115200.
-- GPIO initialization in `MX_GPIO_Init` enables `GPIOB` and configures `M0_Pin|M1_Pin` as outputs and `AUX_Pin` as input.
+Pin / CubeMX ayar önerileri
 
-Suggested CubeMX / STM32 peripheral settings:
+1. USART1 (modül iletişimi): Asynchronous, Baud=9600, 8N1; TX/RX pinlerini board'unuza göre atayın (ör. PA9/PA10).
+2. USART2 (debug/log): Asynchronous, Baud=115200 (isteğe bağlı).
+3. M0 ve M1 pinleri: GPIO Output, Push-Pull, No Pull, Low Speed.
+4. AUX pini: GPIO Input, No Pull.
+5. Kod üretildikten sonra `main.h` dosyasındaki `M0_Pin`, `M1_Pin`, `AUX_Pin` tanımlarını not edin; README'yi kesin pinlerle güncellemek için bu değerleri paylaşabilirsiniz.
 
-1. Enable USART1 (Asynchronous), BaudRate=9600, 8N1. Assign TX/RX pins to your board (e.g. PA9/PA10).
-2. Enable USART2 (Asynchronous) for debugging (115200) and assign pins (e.g. PA2/PA3).
-3. Configure M0 and M1 pins as GPIO Output Push-Pull, No Pull, Low speed (they are toggled in code to change module mode).
-4. Configure AUX pin as GPIO Input (No Pull) and connect to the module AUX.
+Yazılım kullanımı (kısa)
 
-How the software uses the pins and flow:
+- Başlatma: `E220_Init(&lora_module, &huart1, M0_GPIO_Port, M0_Pin, M1_GPIO_Port, M1_Pin, AUX_GPIO_Port, AUX_Pin);`
+- Mod değiştirme: `E220_SetMode(&lora_module, MODE_3_CONFIG)` gibi fonksiyonlar kullanılabilir. Kod, mod değişikliğinin ardından AUX pininin HIGH olmasını bekler (handshake).
+- Ayar okuma: `E220_LoadSettingsFromModule(&lora_module)`
+- RAM'e yazma (geçici): `E220_SaveSettingsToRAM(&lora_module)` — bu fonksiyon `dev->settings` içeriğini modüle parça parça gönderir.
 
-- M0/M1 combinations select module mode (see `E220_SetMode`):
-  - M0=0, M1=0 -> MODE_0_NORMAL
-  - M0=1, M1=0 -> MODE_1_WOR_TX
-  - M0=0, M1=1 -> MODE_2_WOR_RX
-  - M0=1, M1=1 -> MODE_3_CONFIG (configuration mode)
-- After changing mode pins the code waits for AUX to be HIGH to ensure the module is ready before sending config commands.
+„RAM'e yazma" (geçici ayarlar) hakkında kısa bilgi
 
-Practical wiring checklist:
+- Bu proje örneklerinde yapılan yazma işlemi RAM'e (volatile) yazmadır; güç kesilince bu ayarlar kaybolur.
+- İngilizce teknik terimler: "Write to RAM", "Temporary settings" veya "Volatile settings".
+- Kalıcı (permanent) ayarlar için modülün dokümantasyonunda belirtilen non‑volatile (flash/EEPROM) kaydetme komutunu kullanmanız gerekir — bu proje örneğinde RAM'e yazma (temporary) gösterilmiştir.
 
-1. Connect module VCC to 3.3V and GND to GND.
-2. Cross-connect UART: module TX -> MCU RX, module RX -> MCU TX.
-3. Connect M0 and M1 to MCU GPIOs (defined as `M0_Pin`, `M1_Pin` in generated `main.h`).
-4. Connect AUX to an input pin defined as `AUX_Pin`/`AUX_GPIO_Port`.
-5. Verify the pin defines in your `main.h` (CubeMX generated) and, if needed, update code or README accordingly.
+Pratik kontrol listesi (ilk deney)
 
-If you want, I can:
+1. Güç: Modüle 3.3V verildiğinden emin olun.
+2. UART: MCU TX -> MODULE RX, MCU RX -> MODULE TX şeklinde çapraz bağlantı yapın.
+3. M0/M1/AUX: Doğru port/pinlere bağlandıklarını doğrulayın. `main.h` içindeki tanımlarla uyuşmuyorsa README'yi güncelleyin.
+4. Eğer `E220_LoadSettingsFromModule` hata veriyorsa: bağlantıları, güç ve UART baud/parity ayarlarını kontrol edin.
 
-- Insert a simple wiring diagram image (if you provide one) or ASCII art mapping for a specific STM32 board.
-- Update the README with exact pin numbers if you paste `main.h` or your CubeMX `.ioc` pin assignments.
+Örnek davranış (kodda görülenler)
 
----
+- `E220_SetMode` fonksiyonu M0/M1 pinlerini ayarlar, 10 ms bekler ve sonra AUX HIGH olana kadar bekleyerek mod geçişini onaylar.
+- `E220_ReadRegister` ve `E220_WriteTempRegister` UART üzerinden modül ile paket tabanlı iletişim yapar (komut/cevap). Okuma ve yazma işlemleri belirtilen timeout değerlerine tabidir.
 
+Hata giderme (troubleshooting)
 
+- Güç 3.3V mı? 5V vermeyin.
+- UART kabloları çapraz mı bağlandı? (MCU_TX->MOD_RX, MCU_RX->MOD_TX)
+- AUX pini beklenen durumda mı? Kod çoğu operasyondan önce AUX HIGH bekler.
+- `main.h` içindeki pin tanımları ile fiziksel bağlantılar uyuşuyor mu?
+
+Geliştirme notları ve değiştirilebilir alanlar
+
+- `M0_Pin`, `M1_Pin`, `AUX_Pin` tanımları `main.h` içinde bulunur; kesin pinleri README'ye eklememi isterseniz o dosyayı paylaşın.
+- Eğer isterseniz README'yi belirli bir STM32 kartına (Nucleo/Discovery model) göre kişiselleştiririm ve ASCII diyagram eklerim.
+
+English — Quick reference
+
+This repository demonstrates basic usage of the EBYTE E220 family with an STM32 using HAL. It exposes functions to change module modes, read registers, and write temporary settings to RAM.
+
+Contents
+
+- `Inc/Lora_Settings.h`: structures/enums and prototypes
+- `Src/Lora_Settings.c`: UART register read/write and settings parsing
+- `Src/main.c`: example usage and a small test flow
+
+Quick wiring (typical)
+
+- MODULE TX -> MCU RX (USART1_RX)
+- MODULE RX -> MCU TX (USART1_TX)
+- MODULE VCC -> 3.3V
+- MODULE GND -> GND
+- M0/M1 -> MCU GPIO outputs (used to switch mode)
+- AUX -> MCU GPIO input (module ready indicator)
+
+CubeMX / STM32 setup (suggested)
+
+1. Enable USART1 for module comms (9600, 8N1).
+2. Enable a second UART for debug if needed (115200).
+3. Configure M0/M1 as outputs (push-pull) and AUX as input (no pull).
+
+Temporary vs Permanent writes
+
+- The provided library writes settings to RAM (temporary). These are volatile and lost on power cycle. To persist settings across power cycles you must use the module's persistent-save command (not covered here).
+
+If you want help adapting the README to a specific STM32 board or want an ASCII wiring diagram, paste your `main.h` or tell me your board model and I'll update the README accordingly.
+
+License
+
+See the `LICENSE` file in this repository.
